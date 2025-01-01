@@ -3,11 +3,20 @@ package main
 import (
 	"net/http"
 
-	"github.com/supremed3v/social-media/internal/store"
+	_ "github.com/supremed3v/social-media/internal/store"
 )
 
 func (app *application) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("OK"))
 
-	app.store.Posts.Create(r.Context(), &store.Post{})
+	data := map[string]string{
+		"status":  "ok",
+		"env":     app.config.env,
+		"version": version,
+	}
+
+	if err := writeJSON(w, http.StatusOK, data); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	// app.store.Posts.Create(r.Context(), &store.Post{})
 }

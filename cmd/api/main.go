@@ -8,9 +8,12 @@ import (
 	"github.com/supremed3v/social-media/internal/store"
 )
 
+const version = "0.0.1"
+
 func main() {
 	cfg := config{
 		addr: env.GetString("ADDR", ":8080"),
+		env:  "development",
 		db: dbConfig{
 			addr:         env.GetString("DB_ADDR", "postgres://admin:adminpassword@localhost/social?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
