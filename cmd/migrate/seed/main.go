@@ -9,8 +9,9 @@ func main() {
 	conn, err := db.New("postgres://admin:adminpassword@localhost/social?sslmode=disable", 3, 3, "15m")
 
 	if err != nil {
-
+		return
 	}
+	defer conn.Close()
 	store := store.NewStorage(conn)
 	db.Seed(store)
 }
