@@ -18,8 +18,6 @@ type CommentStore struct {
 	db *sql.DB
 }
 
-// TODO: Create comments for posts
-
 func (s *CommentStore) GetByPostID(ctx context.Context, postID int64) ([]Comment, error) {
 	query := `
 	SELECT c.id, c.post_id, c.user_id, c.content, c.createdAt,
