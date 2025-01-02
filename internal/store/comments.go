@@ -22,12 +22,16 @@ type CommentStore struct {
 
 func (s *CommentStore) GetByPostID(ctx context.Context, postID int64) ([]Comment, error) {
 	query := `
-	SELECT c.id, c.post_id, c.user_id, c.content, c.createdAt, users.username, users.id FROM comments c
-	JOIN users ON users.id = c.user_id
-	WHERE c.post_id = $1
-	ORDER BY c.createdAt DESC;
-	`
+	SELECT c.id, c.post_id, c.user_id, c.content, c.createdAt,
+       users.id, users.username, users.email, users.createdAt
+FROM comments c
+JOIN users ON users.id = c.user_id
+WHERE c.post_id = $1
+ORDER BY c.createdAt DESC;
 
+	`
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
 	row, err := s.db.QueryContext(ctx, query, postID)
 	if err != nil {
 		return nil, err
@@ -39,11 +43,55 @@ func (s *CommentStore) GetByPostID(ctx context.Context, postID int64) ([]Comment
 	for row.Next() {
 		var c Comment
 		c.User = User{}
-		err := row.Scan(&c.ID, &c.PostID, &c.UserID, &c.Content, &c.CreatedAt, &c.User.Username, &c.User.ID)
+		err := row.Scan(
+			&c.ID, &c.PostID, &c.UserID, &c.Content, &c.CreatedAt,
+			&c.User.ID, &c.User.Username, &c.User.Email, &c.User.CreatedAt,
+		)
 		if err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
 	}
+
 	return comments, nil
+}
+
+func (s *CommentStore) Create(ctx context.Context, comment *Comment) error {
+	query := `
+        INSERT INTO comments (post_id, user_id, content)
+        VALUES ($1, $2, $3)
+        RETURNING id, createdAt
+    `
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	// Insert the comment and get the ID and createdAt
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		comment.PostID,
+		comment.UserID,
+		comment.Content,
+	).Scan(&comment.ID, &comment.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	// Fetch the user's details
+	userQuery := `
+        SELECT id, username, email, createdAt
+        FROM users
+        WHERE id = $1
+    `
+	err = s.db.QueryRowContext(ctx, userQuery, comment.UserID).Scan(
+		&comment.User.ID,
+		&comment.User.Username,
+		&comment.User.Email,
+		&comment.User.CreatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

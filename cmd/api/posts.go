@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -18,6 +19,10 @@ type CreatePostPayload struct {
 	Title   string   `json:"title" validate:"required,max=100"`
 	Content string   `json:"content" validate:"required,max=1000"`
 	Tags    []string `json:"tags"`
+}
+
+type CreateCommentPayload struct {
+	Content string `json:"content" validate:"required,max=1000"`
 }
 
 func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +88,7 @@ func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	}
 	ctx := r.Context()
 
-	err = app.store.Posts.DeleteByID(ctx, id)
+	err = app.store.Posts.Delete(ctx, id)
 
 	if err != nil {
 		switch {
@@ -142,12 +147,15 @@ func (app *application) postsContextMiddleware(next http.Handler) http.Handler {
 		idParam := chi.URLParam(r, "postId")
 		id, err := strconv.ParseInt(idParam, 10, 64)
 		if err != nil {
-			app.internalServerError(w, r, err)
+			log.Printf("Invalid postId: %v", err)
+			app.badRequestError(w, r, err)
+			return
 		}
-		ctx := r.Context()
 
+		ctx := r.Context()
 		post, err := app.store.Posts.GetByID(ctx, id)
 		if err != nil {
+			log.Printf("Post not found for ID %d: %v", id, err)
 			switch {
 			case errors.Is(err, store.ErrNotFound):
 				app.notFoundError(w, r, err)
@@ -163,6 +171,46 @@ func (app *application) postsContextMiddleware(next http.Handler) http.Handler {
 }
 
 func getPostFromCtx(r *http.Request) *store.Post {
-	post, _ := r.Context().Value("post").(*store.Post)
+	post, ok := r.Context().Value(postCtx).(*store.Post)
+	if !ok || post == nil {
+		log.Println("Post not found in context")
+		return nil
+	}
 	return post
+}
+
+func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Request) {
+	post := getPostFromCtx(r)
+	if post == nil {
+		app.notFoundError(w, r, errors.New("post not found in context"))
+		return
+	}
+
+	var payload CreateCommentPayload
+	if err := readJSON(w, r, &payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	comment := &store.Comment{
+		Content: payload.Content,
+		PostID:  post.ID,
+		UserID:  post.UserID, // Replace with actual user ID after authentication
+	}
+
+	ctx := r.Context()
+	if err := app.store.Comments.Create(ctx, comment); err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	if err := app.jsonResponse(w, http.StatusCreated, comment); err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
 }
