@@ -149,9 +149,9 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userID int64) ([]PostWithMe
 		FROM posts p
 		LEFT JOIN comments c ON c.post_id = p.id
 		LEFT JOIN users u ON p.user_id = u.id
-		JOIN followers f ON f.follower_id = p.user_id OR p.user_id = 320
-		WHERE f.user_id = 320 or p.user_id = 341
-		GROUP BY p.id
+		JOIN followers f ON f.follower_id = p.user_id OR p.user_id = $1
+		WHERE f.user_id = $1 or p.user_id = $1
+		GROUP BY p.id, u.username
 		ORDER BY p.createdat DESC 
 	`
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
