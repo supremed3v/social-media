@@ -7,7 +7,6 @@ import (
 )
 
 func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: Pagination, filters, sort
 	fq := store.PaginatedFeedQuery{
 		Limit:  20,
 		Offset: 0,
