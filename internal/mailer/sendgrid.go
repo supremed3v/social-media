@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"log"
 	"time"
 
 	"github.com/sendgrid/sendgrid-go"
@@ -28,51 +27,47 @@ func NewSendgrid(apiKey, fromEmail string) *SendGridMailer {
 	}
 }
 
-func (m *SendGridMailer) Send(templateFile, username, email string, data any, isSandbox bool) error {
+func (m *SendGridMailer) Send(templateFile, username, email string, data any, isSandbox bool) (int, error) {
 	from := mail.NewEmail(FromName, m.fromEmail)
 	to := mail.NewEmail(username, email)
 
-	// Template parsing and building
+	// template parsing and building
 	tmpl, err := template.ParseFS(FS, "templates/"+templateFile)
 	if err != nil {
-		return err
+		return -1, err
 	}
-	subject := new(bytes.Buffer)
 
+	subject := new(bytes.Buffer)
 	err = tmpl.ExecuteTemplate(subject, "subject", data)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	body := new(bytes.Buffer)
 	err = tmpl.ExecuteTemplate(body, "body", data)
 	if err != nil {
+		return -1, err
+	}
 
-		message := mail.NewSingleEmail(from, subject.String(), to, "", body.String())
+	message := mail.NewSingleEmail(from, subject.String(), to, "", body.String())
 
-		message.SetMailSettings(&mail.MailSettings{
-			SandboxMode: &mail.Setting{
-				Enable: &isSandbox,
-			},
-		})
+	message.SetMailSettings(&mail.MailSettings{
+		SandboxMode: &mail.Setting{
+			Enable: &isSandbox,
+		},
+	})
 
-		for i := 0; i < maxRetries; i++ {
-
-			respose, err := m.client.Send(message)
-			if err != nil {
-				log.Printf("Failed to send email to %v, attempt %d of %d", email, i+1, maxRetries)
-				log.Panicf("Error %v", err.Error())
-
-				// Exponential backoff
-				time.Sleep(time.Second * time.Duration(i+1))
-				continue
-			}
-
-			log.Printf("Email send with status code %v", respose.StatusCode)
-			return nil
+	var retryErr error
+	for i := 0; i < maxRetries; i++ {
+		response, retryErr := m.client.Send(message)
+		if retryErr != nil {
+			// exponential backoff
+			time.Sleep(time.Second * time.Duration(i+1))
+			continue
 		}
 
+		return response.StatusCode, nil
 	}
-	return fmt.Errorf("failed to send email after %d attempts", maxRetries)
 
+	return -1, fmt.Errorf("failed to send email after %d attempt, error: %v", maxRetries, retryErr)
 }
