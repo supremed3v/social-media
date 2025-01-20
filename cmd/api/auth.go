@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/supremed3v/social-media/internal/mailer"
 	"github.com/supremed3v/social-media/internal/store"
@@ -105,4 +107,53 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		app.internalServerError(w, r, err)
 	}
 
+}
+
+type CreateUserTokenPayload struct {
+	Email    string `json:"email" validate:"required, email, max=255"`
+	Password string `json:"password" validate:"required, min=3, max=72"`
+}
+
+func (app *application) createTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// parse payload credentials
+	var payload CreateUserTokenPayload
+	if err := readJSON(w, r, &payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+	// fetch the user (check if the user exists) from the payload
+
+	user, err := app.store.Users.GetByEmail(r.Context(), payload.Email)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			app.unAuthorizedErr(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+	// generate the token -> add claims
+	claims := jwt.MapClaims{
+		"sub":  user.ID,
+		"expo": time.Now().Add(app.config.auth.token.exp).Unix(),
+		"iat":  time.Now().Unix(),
+		"nbf":  time.Now().Unix(),
+		"iss":  app.config.auth.token.issuer,
+		"aud":  app.config.auth.token.issuer,
+	}
+	token, err := app.authenticator.GenerateToken(claims)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+	// send it to the client
+	if err := app.jsonResponse(w, http.StatusCreated, token); err != nil {
+		app.internalServerError(w, r, err)
+	}
 }

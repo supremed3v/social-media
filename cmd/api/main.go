@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/supremed3v/social-media/internal/auth"
 	"github.com/supremed3v/social-media/internal/db"
 	"github.com/supremed3v/social-media/internal/env"
 	"github.com/supremed3v/social-media/internal/mailer"
@@ -56,6 +57,11 @@ func main() {
 				user: "admin",
 				pass: "admin",
 			},
+			token: tokenConfig{
+				secret: env.GetString("AUTH", "example"),
+				exp:    time.Hour * 24 * 3, // 3 days
+				issuer: "socialmedia",
+			},
 		},
 	}
 
@@ -78,11 +84,14 @@ func main() {
 
 	mailer := mailer.NewSendgrid(cfg.mail.sendGrid.apiKey, cfg.mail.fromEmail)
 
+	jwtAuthenticator := auth.NewJWTAuthenticator(cfg.auth.token.secret, cfg.auth.token.issuer, cfg.auth.token.issuer)
+
 	app := &application{
-		config: cfg,
-		store:  store,
-		logger: logger,
-		mailer: mailer,
+		config:        cfg,
+		store:         store,
+		logger:        logger,
+		mailer:        mailer,
+		authenticator: jwtAuthenticator,
 	}
 
 	mux := app.mount()

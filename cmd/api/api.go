@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/supremed3v/social-media/docs"
+	"github.com/supremed3v/social-media/internal/auth"
 	"github.com/supremed3v/social-media/internal/mailer"
 	"github.com/supremed3v/social-media/internal/store"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -16,10 +17,11 @@ import (
 )
 
 type application struct {
-	config config
-	store  store.Storage
-	logger *zap.SugaredLogger
-	mailer mailer.Client
+	config        config
+	store         store.Storage
+	logger        *zap.SugaredLogger
+	mailer        mailer.Client
+	authenticator auth.Authenticator
 }
 
 type config struct {
@@ -34,6 +36,13 @@ type config struct {
 
 type authConfig struct {
 	basic basicConfig
+	token tokenConfig
+}
+
+type tokenConfig struct {
+	secret string
+	exp    time.Duration
+	issuer string
 }
 
 type basicConfig struct {
@@ -120,6 +129,7 @@ func (app *application) mount() http.Handler {
 
 			r.Route("/authentication", func(r chi.Router) {
 				r.Post("/user", app.registerUserHandler)
+				r.Post("/token", app.createTokenHandler)
 			})
 		})
 
