@@ -4,11 +4,13 @@ import (
 	"log"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/supremed3v/social-media/internal/auth"
 	"github.com/supremed3v/social-media/internal/db"
 	"github.com/supremed3v/social-media/internal/env"
 	"github.com/supremed3v/social-media/internal/mailer"
 	"github.com/supremed3v/social-media/internal/store"
+	"github.com/supremed3v/social-media/internal/store/cache"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +47,12 @@ func main() {
 			maxIdleConns: env.GetInt("DB_MAX_IDLE_CONNS", 30),
 			maxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
 		},
+		redisCfg: redisConfig{
+			addr:    env.GetString("REDIS_ADDR", "localhost:6379"),
+			pw:      env.GetString("REDIS_PW", ""),
+			db:      env.GetInt("REDIS_DB", 0),
+			enabled: env.GetBool("REDIS_ENABLED", true),
+		},
 		mail: mailConfig{
 			exp: time.Hour * 24 * 3, //3 days
 			sendGrid: sendGridConfig{
@@ -78,9 +86,18 @@ func main() {
 
 	defer db.Close()
 
+	// Cache
+	var rdb *redis.Client
+	if cfg.redisCfg.enabled {
+		rdb = cache.NewRedisClient(cfg.redisCfg.addr, cfg.redisCfg.pw, cfg.redisCfg.db)
+		logger.Info("redis cached connection established")
+
+	}
+
 	logger.Info("db connected")
 
 	store := store.NewStorage(db)
+	cacheStorage := cache.NewRedisStorage(rdb)
 
 	mailer := mailer.NewSendgrid(cfg.mail.sendGrid.apiKey, cfg.mail.fromEmail)
 
@@ -89,6 +106,7 @@ func main() {
 	app := &application{
 		config:        cfg,
 		store:         store,
+		cacheStorage:  cacheStorage,
 		logger:        logger,
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,

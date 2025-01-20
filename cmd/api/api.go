@@ -12,6 +12,7 @@ import (
 	"github.com/supremed3v/social-media/internal/auth"
 	"github.com/supremed3v/social-media/internal/mailer"
 	"github.com/supremed3v/social-media/internal/store"
+	"github.com/supremed3v/social-media/internal/store/cache"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
@@ -19,6 +20,7 @@ import (
 type application struct {
 	config        config
 	store         store.Storage
+	cacheStorage  cache.Storage
 	logger        *zap.SugaredLogger
 	mailer        mailer.Client
 	authenticator auth.Authenticator
@@ -32,6 +34,14 @@ type config struct {
 	mail        mailConfig
 	frontendURL string
 	auth        authConfig
+	redisCfg    redisConfig
+}
+
+type redisConfig struct {
+	addr    string
+	pw      string
+	db      int
+	enabled bool
 }
 
 type authConfig struct {
