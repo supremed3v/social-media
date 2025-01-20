@@ -136,7 +136,9 @@ func generateUsers(num int) []*store.User {
 			Username: username,
 			Email:    email,
 			IsActive: true,
-			RoleID:   1,
+			Role: store.Role{
+				Name: "user",
+			},
 		}
 
 		defaultPassword := "password123"
