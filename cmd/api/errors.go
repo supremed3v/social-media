@@ -42,3 +42,8 @@ func (app *application) unauthJwtErr(w http.ResponseWriter, r *http.Request, err
 	app.logger.Warnf("unauthorized jwt error", "method", r.Method, "path", r.URL.Path, "error", err.Error())
 	writeJSONError(w, http.StatusUnauthorized, "not authorized")
 }
+
+func (app *application) forbiddenResponse(w http.ResponseWriter, r *http.Request) {
+	app.logger.Warnw("forbidden", "method", r.Method, "path", r.URL.Path)
+	writeJSONError(w, http.StatusForbidden, "forbidden")
+}
