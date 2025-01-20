@@ -76,53 +76,81 @@ var comments = []string{
 	"Thanks for the information, very useful.",
 }
 
+// Seed function seeds the database with users, posts, and comments
 func Seed(store store.Storage, db *sql.DB) {
 	ctx := context.Background()
 
+	// Start transaction
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Fatalf("Failed to begin transaction: %v", err)
+	}
+
+	// Seed users
 	users := generateUsers(100)
-	tx, _ := db.BeginTx(ctx, nil)
 	for _, user := range users {
 		if err := store.Users.Create(ctx, tx, user); err != nil {
-			log.Println("Error seeding users:", err)
-
+			log.Printf("Error seeding users: %v", err)
+			tx.Rollback()
+			return
 		}
 	}
 
-	tx.Commit()
+	// Seed posts
 	posts := generatePosts(200, users)
-
 	for _, post := range posts {
 		if err := store.Posts.Create(ctx, post); err != nil {
-			log.Println("Error seeding posts:", err)
+			log.Printf("Error seeding posts: %v", err)
+			tx.Rollback()
+			return
 		}
 	}
 
+	// Seed comments
 	comments := generateComments(500, users, posts)
-
 	for _, comment := range comments {
 		if err := store.Comments.Create(ctx, comment); err != nil {
-			log.Println("Error seeding users:", err)
-
+			log.Printf("Error seeding comments: %v", err)
+			tx.Rollback()
+			return
 		}
 	}
 
-	log.Println("Seeding completed")
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		log.Fatalf("Failed to commit transaction: %v", err)
+	}
 
+	log.Println("Seeding completed successfully")
 }
 
+// generateUsers generates a list of users
 func generateUsers(num int) []*store.User {
 	users := make([]*store.User, num)
 
 	for i := 0; i < num; i++ {
-		users[i] = &store.User{
-			Username: usernames[i%len(usernames)] + fmt.Sprintf("%d", i),
-			Email:    usernames[i%len(usernames)] + fmt.Sprintf("%d", i) + "@example.com",
+		username := usernames[i%len(usernames)] + fmt.Sprintf("%d", i)
+		email := username + "@example.com"
+
+		user := &store.User{
+			Username: username,
+			Email:    email,
+			IsActive: true,
+			RoleID:   1,
 		}
+
+		defaultPassword := "password123"
+		if err := user.Password.Set(defaultPassword); err != nil {
+			panic(fmt.Sprintf("Failed to set password for user %s: %v", username, err))
+		}
+
+		users[i] = user
 	}
 
 	return users
 }
 
+// generatePosts generates a list of posts
 func generatePosts(num int, users []*store.User) []*store.Post {
 	posts := make([]*store.Post, num)
 	for i := 0; i < num; i++ {
@@ -142,6 +170,7 @@ func generatePosts(num int, users []*store.User) []*store.Post {
 	return posts
 }
 
+// generateComments generates a list of comments
 func generateComments(num int, users []*store.User, posts []*store.Post) []*store.Comment {
 	cms := make([]*store.Comment, num)
 	for i := 0; i < num; i++ {

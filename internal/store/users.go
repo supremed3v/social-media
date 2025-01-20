@@ -23,6 +23,7 @@ type User struct {
 	Password  password `json:"-"`
 	CreatedAt string   `json:"createdAt"`
 	IsActive  bool     `json:"is_active"`
+	RoleID    int64    `json:"role_id"`
 }
 
 type password struct {
@@ -138,12 +139,12 @@ func (p *password) Compare(text string) error {
 
 func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password) VALUES($1, $2, $3) RETURNING id, createdAt
+		INSERT INTO users (username, email, password, role_id) VALUES($1, $2, $3, $4) RETURNING id, createdAt
 	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
-	err := s.db.QueryRowContext(ctx, query, user.Username, user.Email, user.Password.hash).Scan(&user.ID, &user.CreatedAt)
+	err := s.db.QueryRowContext(ctx, query, user.Username, user.Email, user.Password.hash, user.RoleID).Scan(&user.ID, &user.CreatedAt)
 
 	if err != nil {
 		switch {

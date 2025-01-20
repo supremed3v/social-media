@@ -1,2 +1,2 @@
 ALTER TABLE
-users_invitations DROP COLUMN expiry;
+user_invitations DROP COLUMN expiry;
