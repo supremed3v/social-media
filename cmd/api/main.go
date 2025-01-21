@@ -9,6 +9,7 @@ import (
 	"github.com/supremed3v/social-media/internal/db"
 	"github.com/supremed3v/social-media/internal/env"
 	"github.com/supremed3v/social-media/internal/mailer"
+	"github.com/supremed3v/social-media/internal/ratelimiter"
 	"github.com/supremed3v/social-media/internal/store"
 	"github.com/supremed3v/social-media/internal/store/cache"
 	"go.uber.org/zap"
@@ -71,6 +72,11 @@ func main() {
 				issuer: "socialmedia",
 			},
 		},
+		rateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.GetInt("RATELIMITER_REQUEST_COUNT", 20),
+			TimeFrame:            time.Second * 5,
+			Enabled:              env.GetBool("RATE_LIMITER_ENABLED", true),
+		},
 	}
 
 	// Logger
@@ -92,7 +98,15 @@ func main() {
 		rdb = cache.NewRedisClient(cfg.redisCfg.addr, cfg.redisCfg.pw, cfg.redisCfg.db)
 		logger.Info("redis cached connection established")
 
+		defer rdb.Close()
 	}
+
+	// Rate Limiter
+
+	rateLimiter := ratelimiter.NewFixedWindowLimiter(
+		cfg.rateLimiter.RequestsPerTimeFrame,
+		cfg.rateLimiter.TimeFrame,
+	)
 
 	logger.Info("db connected")
 
@@ -110,6 +124,7 @@ func main() {
 		logger:        logger,
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
+		rateLimiter:   rateLimiter,
 	}
 
 	mux := app.mount()

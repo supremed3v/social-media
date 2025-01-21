@@ -16,6 +16,7 @@ import (
 	"github.com/supremed3v/social-media/docs"
 	"github.com/supremed3v/social-media/internal/auth"
 	"github.com/supremed3v/social-media/internal/mailer"
+	"github.com/supremed3v/social-media/internal/ratelimiter"
 	"github.com/supremed3v/social-media/internal/store"
 	"github.com/supremed3v/social-media/internal/store/cache"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -29,6 +30,7 @@ type application struct {
 	logger        *zap.SugaredLogger
 	mailer        mailer.Client
 	authenticator auth.Authenticator
+	rateLimiter   ratelimiter.Limiter
 }
 
 type config struct {
@@ -40,6 +42,7 @@ type config struct {
 	frontendURL string
 	auth        authConfig
 	redisCfg    redisConfig
+	rateLimiter ratelimiter.Config
 }
 
 type redisConfig struct {
@@ -103,6 +106,7 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(app.RateLimiterMiddleware)
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
