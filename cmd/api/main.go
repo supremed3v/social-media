@@ -82,9 +82,9 @@ func main() {
 			Enabled:              env.GetBool("RATE_LIMITER_ENABLED", true),
 		},
 		cloudinary: cloudinary.CloudinaryConfig{
-			CloudName: env.GetString("CLOUDINARY_CLOUD_NAME", "dulnvdyka"),
-			APIKey:    env.GetString("CLOUDINARY_API_KEY", "125954315764833"),
-			APISecret: env.GetString("CLOUDINARY_API_SECRET", "7L5JHCzwcPA4Yxvvcs70k4VITRc"),
+			CloudName: env.GetString("CLOUDINARY_CLOUD_NAME", ""),
+			APIKey:    env.GetString("CLOUDINARY_API_KEY", ""),
+			APISecret: env.GetString("CLOUDINARY_API_SECRET", ""),
 		},
 	}
 
