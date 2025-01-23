@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/supremed3v/social-media/compare/v1.1.0...v1.2.0) (2025-01-23)
+
+
+### Features
+
+* implemented dotenv through .env file package reader ([2229791](https://github.com/supremed3v/social-media/commit/2229791f950724797127c7ce255b196a244597d6))
+
 ## [1.1.0](https://github.com/supremed3v/social-media/compare/v1.0.0...v1.1.0) (2025-01-23)
 
 
