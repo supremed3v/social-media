@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/supremed3v/social-media/docs"
 	"github.com/supremed3v/social-media/internal/auth"
+	"github.com/supremed3v/social-media/internal/cloudinary"
 	"github.com/supremed3v/social-media/internal/env"
 	"github.com/supremed3v/social-media/internal/mailer"
 	"github.com/supremed3v/social-media/internal/ratelimiter"
@@ -33,18 +34,21 @@ type application struct {
 	mailer        mailer.Client
 	authenticator auth.Authenticator
 	rateLimiter   ratelimiter.Limiter
+	cloudinary    cloudinary.CloudinaryService
 }
 
 type config struct {
-	addr        string
-	db          dbConfig
-	env         string
-	apiURL      string
-	mail        mailConfig
-	frontendURL string
-	auth        authConfig
-	redisCfg    redisConfig
-	rateLimiter ratelimiter.Config
+	addr            string
+	db              dbConfig
+	env             string
+	apiURL          string
+	mail            mailConfig
+	frontendURL     string
+	auth            authConfig
+	redisCfg        redisConfig
+	rateLimiter     ratelimiter.Config
+	cloudinary      cloudinary.CloudinaryConfig
+	maxMultipartMem int64
 }
 
 type redisConfig struct {
@@ -100,7 +104,7 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
-		AllowedOrigins: []string{env.GetString("CORS_ALLOWED_ORIGIN", "http://localhost:5173")},
+		AllowedOrigins: []string{env.GetString("CORS_ALLOWED_ORIGIN", "http://localhost:5173"), "http://*"},
 		// AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
@@ -116,6 +120,10 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Route("/v1", func(r chi.Router) {
+		r.Route("/uploads", func(r chi.Router) {
+			r.Use(app.FileUploadMiddleware)
+			r.Post("/", app.uploadImageHandler)
+		})
 
 		r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)
 		r.With(app.BasicAuthMiddleware()).Get("/debug/vars", expvar.Handler().ServeHTTP)
@@ -155,6 +163,7 @@ func (app *application) mount() http.Handler {
 				r.Post("/user", app.registerUserHandler)
 				r.Post("/token", app.createTokenHandler)
 			})
+
 		})
 
 	})

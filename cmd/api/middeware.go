@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -167,6 +168,59 @@ func (app *application) RateLimiterMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) FileUploadMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Parse the multipart form with a memory limit
+		if err := r.ParseMultipartForm(app.config.maxMultipartMem); err != nil {
+			app.badRequestError(w, r, fmt.Errorf("failed to parse multipart form: %w", err))
+			return
+		}
+
+		// Retrieve the file from the form
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			app.badRequestError(w, r, fmt.Errorf("failed to retrieve file: %w", err))
+			return
+		}
+		defer file.Close()
+
+		// Check file size
+		if header.Size > app.config.maxMultipartMem {
+			app.badRequestError(w, r, fmt.Errorf("file size exceeds the limit of %d bytes", app.config.maxMultipartMem))
+			return
+		}
+
+		// Read file bytes
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			app.badRequestError(w, r, fmt.Errorf("failed to read file: %w", err))
+			return
+		}
+
+		// Check file type
+		fileType := http.DetectContentType(fileBytes)
+		if !strings.HasPrefix(fileType, "image") {
+			app.badRequestError(w, r, fmt.Errorf("uploaded file is not an image, detected type: %s", fileType))
+			return
+		}
+
+		// Use unique context key types
+		type contextKey string
+		const (
+			fileKey     contextKey = "file"
+			fileNameKey contextKey = "fileName"
+		)
+
+		// Add file data to the request context
+		ctx := context.WithValue(r.Context(), fileKey, fileBytes)
+		ctx = context.WithValue(ctx, fileNameKey, header.Filename)
+		r = r.WithContext(ctx)
+
+		// Pass the request to the next handler
 		next.ServeHTTP(w, r)
 	})
 }

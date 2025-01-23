@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/supremed3v/social-media/internal/auth"
+	"github.com/supremed3v/social-media/internal/cloudinary"
 	"github.com/supremed3v/social-media/internal/db"
 	"github.com/supremed3v/social-media/internal/env"
 	"github.com/supremed3v/social-media/internal/mailer"
@@ -40,10 +41,11 @@ const version = "0.0.1"
 func main() {
 
 	cfg := config{
-		addr:        env.GetString("ADDR", ":8080"),
-		apiURL:      env.GetString("EXTERNAL_URL", "localhost:8080"),
-		frontendURL: env.GetString("FRONTEND_URL", "http:localhost:4000"),
-		env:         "development",
+		addr:            env.GetString("ADDR", ":8080"),
+		apiURL:          env.GetString("EXTERNAL_URL", "localhost:8080"),
+		frontendURL:     env.GetString("FRONTEND_URL", "http:localhost:4000"),
+		env:             "development",
+		maxMultipartMem: 10 << 20, // 10 MB
 		db: dbConfig{
 			addr:         env.GetString("DB_ADDR", "postgres://admin:adminpassword@localhost/social?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
@@ -79,6 +81,11 @@ func main() {
 			TimeFrame:            time.Second * 5,
 			Enabled:              env.GetBool("RATE_LIMITER_ENABLED", true),
 		},
+		cloudinary: cloudinary.CloudinaryConfig{
+			CloudName: env.GetString("CLOUDINARY_CLOUD_NAME", "dulnvdyka"),
+			APIKey:    env.GetString("CLOUDINARY_API_KEY", "125954315764833"),
+			APISecret: env.GetString("CLOUDINARY_API_SECRET", "7L5JHCzwcPA4Yxvvcs70k4VITRc"),
+		},
 	}
 
 	// Logger
@@ -110,6 +117,10 @@ func main() {
 		cfg.rateLimiter.TimeFrame,
 	)
 
+	// Cloudinary
+
+	cloudinaryService, _ := cloudinary.NewCloudinary(cfg.cloudinary)
+
 	logger.Info("db connected")
 
 	store := store.NewStorage(db)
@@ -127,6 +138,7 @@ func main() {
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
 		rateLimiter:   rateLimiter,
+		cloudinary:    cloudinaryService,
 	}
 
 	// Metrics collected

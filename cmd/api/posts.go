@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/supremed3v/social-media/internal/store"
@@ -19,6 +22,10 @@ type CreatePostPayload struct {
 	Title   string   `json:"title" validate:"required,max=100"`
 	Content string   `json:"content" validate:"required,max=1000"`
 	Tags    []string `json:"tags"`
+}
+
+type CreateImagePayload struct {
+	Image string `json:"image"`
 }
 
 type CreateCommentPayload struct {
@@ -211,5 +218,46 @@ func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Requ
 	if err := app.jsonResponse(w, http.StatusCreated, comment); err != nil {
 		app.internalServerError(w, r, err)
 		return
+	}
+}
+
+type ImagePayload struct {
+	Image string `json:"image"`
+}
+
+func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
+	// Maximum file size: 10 MB
+	const maxFileSize = 10 * 1024 * 1024
+
+	// Read the file from the request
+	fileBytes, fileName, fileType, err := readFile(r, "file", maxFileSize)
+	if err != nil {
+		app.badRequestError(w, r, fmt.Errorf("file upload error: %w", err))
+		return
+	}
+
+	// Validate file type
+	if !strings.HasPrefix(fileType, "image") {
+		app.badRequestError(w, r, fmt.Errorf("invalid file type: %s", fileType))
+		return
+	}
+
+	// Upload the file to Cloudinary
+	secureURL, err := app.cloudinary.UploadImageFromReader(r.Context(), bytes.NewReader(fileBytes), fileName)
+	if err != nil {
+		app.internalServerError(w, r, fmt.Errorf("failed to upload image: %w", err))
+		return
+	}
+
+	// Save the image URL in the database (if needed)
+	image := &store.Image{ImageURL: secureURL}
+	if err := app.store.Posts.PostImage(r.Context(), image.ImageURL); err != nil {
+		app.internalServerError(w, r, fmt.Errorf("failed to save image in the database: %w", err))
+		return
+	}
+
+	// Respond with the uploaded image URL
+	if err := app.jsonResponse(w, http.StatusCreated, image); err != nil {
+		app.internalServerError(w, r, err)
 	}
 }

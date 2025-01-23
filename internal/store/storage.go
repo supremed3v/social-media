@@ -20,6 +20,7 @@ type Storage struct {
 		Create(context.Context, *Post) error
 		Update(context.Context, *Post) error
 		GetUserFeed(context.Context, int64, PaginatedFeedQuery) ([]PostWithMetadata, error)
+		PostImage(ctx context.Context, image string) error
 	}
 	Users interface {
 		Activate(context.Context, string) error

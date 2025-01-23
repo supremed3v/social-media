@@ -21,6 +21,13 @@ type Post struct {
 	User      User      `json:"users"`
 }
 
+type Image struct {
+	ID        int64  `json:"id"`
+	ImageURL  string `json:"image_url"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 type PostWithMetadata struct {
 	Post
 	CommentsCount int `json:"comments_count"`
@@ -190,4 +197,19 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, fq PaginatedF
 
 	return feed, nil
 
+}
+
+func (s *PostStore) PostImage(ctx context.Context, image string) error {
+	query := `
+		INSERT INTO images (url)
+		VALUES ($1)
+	`
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+	_, err := s.db.ExecContext(ctx, query, image)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
